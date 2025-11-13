@@ -127,15 +127,15 @@ app.post('/api/login', authLimiter, (req, res) => {
     return
   }
   
-  req.session.authenticated = true
-  req.session.username = username
+  ;(req.session as any).authenticated = true
+  ;(req.session as any).username = username
   
   res.json({ success: true })
 })
 
 app.get('/api/check-auth', (req, res) => {
-  if (req.session.authenticated) {
-    res.json({ authenticated: true, username: req.session.username })
+  if ((req.session as any).authenticated) {
+    res.json({ authenticated: true, username: (req.session as any).username })
   } else {
     res.status(401).json({ authenticated: false })
   }
