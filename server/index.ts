@@ -8,6 +8,14 @@ import crypto from 'crypto'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import 'express-session'
+declare module 'express-session' {
+  interface SessionData {
+    authenticated?: boolean
+    username?: string
+  }
+}
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
