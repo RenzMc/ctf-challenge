@@ -15,18 +15,20 @@ function App() {
     })()
   }, [])
 
-  const getCsrfToken = async () => {
+  const getCsrfToken = async (): Promise<string | null> => {
     try {
       const response = await fetch('/api/csrf-token', {
         credentials: 'include'
       })
       if (!response.ok) {
-        return
+        return null
       }
       const data = await response.json()
       setCsrfToken(data.csrfToken || '')
+      return data.csrfToken || null
     } catch (err) {
       console.error('Error getting CSRF token:', err)
+      return null
     }
   }
 
@@ -51,9 +53,10 @@ function App() {
     e.preventDefault()
     setError('')
 
-    if (!csrfToken) {
-      await getCsrfToken()
-      if (!csrfToken) {
+    let token = csrfToken
+    if (!token) {
+      token = await getCsrfToken()
+      if (!token) {
         setError('Gagal mengambil CSRF token')
         return
       }
@@ -64,7 +67,7 @@ function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-csrf-token': csrfToken
+          'x-csrf-token': token
         },
         credentials: 'include',
         body: JSON.stringify({ username, password })
@@ -75,8 +78,9 @@ function App() {
         setError('')
       } else {
         if (response.status === 403) {
-          await getCsrfToken()
+          const newToken = await getCsrfToken()
           setError('CSRF token tidak valid, coba lagi')
+          if (newToken) setCsrfToken(newToken)
           return
         }
         const data = await response.json().catch(() => null)
