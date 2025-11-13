@@ -9,28 +9,41 @@ function App() {
   const [csrfToken, setCsrfToken] = useState('')
 
   useEffect(() => {
-    getCsrfToken()
-    checkAuth()
+    (async () => {
+      await getCsrfToken()
+      await checkAuth()
+    })()
   }, [])
 
   const getCsrfToken = async () => {
     try {
-      const response = await fetch('/api/csrf-token')
+      const response = await fetch('/api/csrf-token', {
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        return
+      }
       const data = await response.json()
-      setCsrfToken(data.csrfToken)
-    } catch (error) {
-      console.error('Error getting CSRF token:', error)
+      setCsrfToken(data.csrfToken || '')
+    } catch (err) {
+      console.error('Error getting CSRF token:', err)
     }
   }
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('/api/check-auth')
+      const response = await fetch('/api/check-auth', {
+        credentials: 'include'
+      })
       if (response.ok) {
+        const data = await response.json()
         setIsLoggedIn(true)
+        if (data.username) setUsername(data.username)
+      } else {
+        setIsLoggedIn(false)
       }
-    } catch (error) {
-      console.error('Error checking auth:', error)
+    } catch (err) {
+      console.error('Error checking auth:', err)
     }
   }
 
@@ -38,25 +51,39 @@ function App() {
     e.preventDefault()
     setError('')
 
+    if (!csrfToken) {
+      await getCsrfToken()
+      if (!csrfToken) {
+        setError('Gagal mengambil CSRF token')
+        return
+      }
+    }
+
     try {
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken
+          'x-csrf-token': csrfToken
         },
         credentials: 'include',
         body: JSON.stringify({ username, password })
       })
 
       if (response.ok) {
-        setIsLoggedIn(true)
+        await checkAuth()
         setError('')
       } else {
-        const data = await response.json()
-        setError(data.error || 'Login gagal')
+        if (response.status === 403) {
+          await getCsrfToken()
+          setError('CSRF token tidak valid, coba lagi')
+          return
+        }
+        const data = await response.json().catch(() => null)
+        setError((data && data.error) || 'Login gagal')
       }
-    } catch (error) {
+    } catch (err) {
+      console.error(err)
       setError('Terjadi kesalahan. Coba lagi.')
     }
   }
@@ -70,8 +97,9 @@ function App() {
       setIsLoggedIn(false)
       setUsername('')
       setPassword('')
-    } catch (error) {
-      console.error('Error during logout:', error)
+      await getCsrfToken()
+    } catch (err) {
+      console.error('Error during logout:', err)
     }
   }
 
