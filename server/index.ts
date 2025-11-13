@@ -2,19 +2,11 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
-import session from 'express-session'
+import cookieSession from 'cookie-session'
 import cookieParser from 'cookie-parser'
 import crypto from 'crypto'
 import path from 'path'
 import { fileURLToPath } from 'url'
-
-import 'express-session'
-declare module 'express-session' {
-  interface SessionData {
-    authenticated?: boolean
-    username?: string
-  }
-}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -51,9 +43,21 @@ app.use(cors({
   credentials: true
 }))
 
+app.use(express.json({ limit: '10kb' }))
+app.use(cookieParser())
+
+app.use(cookieSession({
+  name: 'session',
+  keys: [process.env.SESSION_SECRET || crypto.randomBytes(64).toString('hex')],
+  maxAge: 60 * 60 * 1000,
+  secure: process.env.NODE_ENV === 'production',
+  httpOnly: true,
+  sameSite: 'lax'
+}))
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 100,
   message: { error: 'Terlalu banyak percobaan. Coba lagi nanti.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -61,66 +65,41 @@ const limiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 3,
+  max: 5,
   message: { error: 'Terlalu banyak percobaan login. Coba lagi dalam 15 menit.' },
   skipSuccessfulRequests: true
 })
 
+app.get('/api/csrf-token', (req, res) => {
+  const token = crypto.randomBytes(32).toString('hex')
+  ;(req as any).session = (req as any).session || {}
+  ;(req as any).session.csrfToken = token
+  ;(req as any).session.csrfTokenExpires = Date.now() + 60 * 60 * 1000
+  res.json({ csrfToken: token })
+})
+
 app.use(limiter)
-app.use(express.json({ limit: '10kb' }))
-app.use(cookieParser())
-app.use(session({
-  secret: crypto.randomBytes(64).toString('hex'),
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 60 * 60 * 1000,
-    sameSite: 'lax'
-  }
-}))
-
-const csrfTokens = new Map<string, { token: string, expires: number }>()
-
-const generateCSRFToken = (): string => {
-  return crypto.randomBytes(32).toString('hex')
-}
 
 const validateInput = (input: string): boolean => {
   return /^[a-zA-Z0-9_]+$/.test(input) && input.length > 0 && input.length <= 50
 }
 
-app.get('/api/csrf-token', (req, res) => {
-  const sessionId = req.sessionID
-  const token = generateCSRFToken()
-  const expires = Date.now() + 60 * 60 * 1000
-  
-  csrfTokens.set(sessionId, { token, expires })
-  
-  res.json({ csrfToken: token })
-})
-
 app.post('/api/login', authLimiter, (req, res) => {
   const { username, password } = req.body
-  const sessionId = req.sessionID
-  const storedCSRF = csrfTokens.get(sessionId)
-  
-  if (!req.headers['x-csrf-token'] || !storedCSRF || 
-      req.headers['x-csrf-token'] !== storedCSRF.token ||
-      Date.now() > storedCSRF.expires) {
+  const tokenHeader = (req.headers['x-csrf-token'] || req.headers['X-CSRF-Token'] || '') as string
+  const session = (req as any).session || {}
+
+  if (!tokenHeader || !session.csrfToken || tokenHeader !== session.csrfToken || Date.now() > (session.csrfTokenExpires || 0)) {
     return res.status(403).json({ error: 'CSRF token tidak valid' })
   }
-  
-  csrfTokens.delete(sessionId)
-  
+
   if (!validateInput(username) || !password || password.length > 100) {
     return res.status(400).json({ error: 'Input tidak valid' })
   }
-  
+
   const user = users[username as keyof typeof users]
   const hashedPassword = crypto.createHash('sha256').update(password).digest('hex')
-  
+
   if (!user || user.password !== hashedPassword) {
     const delay = Math.random() * 2000 + 1000
     setTimeout(() => {
@@ -128,29 +107,29 @@ app.post('/api/login', authLimiter, (req, res) => {
     }, delay)
     return
   }
-  
-  ;(req.session as any).authenticated = true
-  ;(req.session as any).username = username
-  
+
+  session.authenticated = true
+  session.username = username
+  session.csrfToken = crypto.randomBytes(32).toString('hex')
+  session.csrfTokenExpires = Date.now() + 60 * 60 * 1000
+  ;(req as any).session = session
+
   res.json({ success: true })
 })
 
 app.get('/api/check-auth', (req, res) => {
-  if ((req.session as any).authenticated) {
-    res.json({ authenticated: true, username: (req.session as any).username })
+  const session = (req as any).session || {}
+  if (session.authenticated) {
+    res.json({ authenticated: true, username: session.username })
   } else {
     res.status(401).json({ authenticated: false })
   }
 })
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ error: 'Gagal logout' })
-    }
-    res.clearCookie('connect.sid')
-    res.json({ success: true })
-  })
+  ;(req as any).session = {}
+  res.clearCookie('session')
+  res.json({ success: true })
 })
 
 app.use(express.static(path.join(__dirname, '../dist')))
