@@ -15,20 +15,20 @@ function App() {
     })()
   }, [])
 
-  const getCsrfToken = async (): Promise<string | null> => {
+  const getCsrfToken = async (): Promise<string> => {
     try {
       const response = await fetch('/api/csrf-token', {
         credentials: 'include'
       })
       if (!response.ok) {
-        return null
+        return ''
       }
       const data = await response.json()
       setCsrfToken(data.csrfToken || '')
-      return data.csrfToken || null
+      return data.csrfToken || ''
     } catch (err) {
       console.error('Error getting CSRF token:', err)
-      return null
+      return ''
     }
   }
 
@@ -84,7 +84,7 @@ function App() {
           return
         }
         const data = await response.json().catch(() => null)
-        setError((data && data.error) || 'Login gagal')
+        setError((data && (data as any).error) || 'Login gagal')
       }
     } catch (err) {
       console.error(err)
