@@ -20,7 +20,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const app = express()
-app.set('trust proxy', 1)
+app.set('trust proxy', true)
 
 const PORT = process.env.PORT || 3001
 
@@ -53,10 +53,15 @@ app.use(cors({
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 100,
   message: { error: 'Terlalu banyak percobaan. Coba lagi nanti.' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    const xff = req.headers['x-forwarded-for']
+    if (typeof xff === 'string') return xff.split(',')[0].trim()
+    return req.ip
+  }
 })
 
 const authLimiter = rateLimit({
@@ -81,8 +86,6 @@ app.use(session({
   }
 }))
 
-const csrfTokens = new Map<string, { token: string, expires: number }>()
-
 const generateCSRFToken = (): string => {
   return crypto.randomBytes(32).toString('hex')
 }
@@ -92,35 +95,31 @@ const validateInput = (input: string): boolean => {
 }
 
 app.get('/api/csrf-token', (req, res) => {
-  const sessionId = req.sessionID
   const token = generateCSRFToken()
-  const expires = Date.now() + 60 * 60 * 1000
-  
-  csrfTokens.set(sessionId, { token, expires })
-  
+  res.cookie('XSRF-TOKEN', token, {
+    maxAge: 60 * 60 * 1000,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: false
+  })
   res.json({ csrfToken: token })
 })
 
 app.post('/api/login', authLimiter, (req, res) => {
   const { username, password } = req.body
-  const sessionId = req.sessionID
-  const storedCSRF = csrfTokens.get(sessionId)
-  
-  if (!req.headers['x-csrf-token'] || !storedCSRF || 
-      req.headers['x-csrf-token'] !== storedCSRF.token ||
-      Date.now() > storedCSRF.expires) {
+  const cookieToken = (req as any).cookies?.['XSRF-TOKEN']
+  const headerToken = req.headers['x-csrf-token']
+  if (!headerToken || !cookieToken || headerToken !== cookieToken) {
     return res.status(403).json({ error: 'CSRF token tidak valid' })
   }
-  
-  csrfTokens.delete(sessionId)
-  
+
   if (!validateInput(username) || !password || password.length > 100) {
     return res.status(400).json({ error: 'Input tidak valid' })
   }
-  
+
   const user = users[username as keyof typeof users]
   const hashedPassword = crypto.createHash('sha256').update(password).digest('hex')
-  
+
   if (!user || user.password !== hashedPassword) {
     const delay = Math.random() * 2000 + 1000
     setTimeout(() => {
@@ -128,10 +127,10 @@ app.post('/api/login', authLimiter, (req, res) => {
     }, delay)
     return
   }
-  
+
   ;(req.session as any).authenticated = true
   ;(req.session as any).username = username
-  
+
   res.json({ success: true })
 })
 
