@@ -22,10 +22,5 @@
       "source": "/(.*)",
       "destination": "/dist/index.html"
     }
-  ],
-  "functions": {
-    "server/index.ts": {
-      "maxDuration": 10
-    }
-  }
+  ]
 }
