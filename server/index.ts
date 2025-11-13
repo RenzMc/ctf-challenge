@@ -20,6 +20,8 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const app = express()
+app.set('trust proxy', 1)
+
 const PORT = process.env.PORT || 3001
 
 const users = {
@@ -45,7 +47,7 @@ app.use(helmet({
 }))
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? false : true,
+  origin: process.env.NODE_ENV === 'production' ? (process.env.FRONTEND_URL || true) : true,
   credentials: true
 }))
 
@@ -75,7 +77,7 @@ app.use(session({
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     maxAge: 60 * 60 * 1000,
-    sameSite: 'strict'
+    sameSite: 'lax'
   }
 }))
 
