@@ -1,13 +1,13 @@
 :root{
-  --bg: #0b0c0f;
-  --surface: #131418;
-  --muted-surface: #1b1d20;
+  --bg: #000000;
+  --surface: #0b0b0b;
+  --muted-surface: #111111;
   --text: rgba(255,255,255,0.92);
-  --muted: rgba(255,255,255,0.66);
-  --primary: #646cff;
-  --primary-hover: #535bf2;
-  --border: rgba(255,255,255,0.06);
-  --focus-ring: rgba(100,108,255,0.18);
+  --muted: rgba(255,255,255,0.64);
+  --primary: #a8a8a8;
+  --primary-hover: #e6e6e6;
+  --border: rgba(255,255,255,0.04);
+  --focus-ring: rgba(255,255,255,0.08);
 
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -26,6 +26,7 @@ a{
   color: var(--primary);
   text-decoration: inherit;
 }
+
 a:hover{
   color: var(--primary-hover);
   text-decoration: underline;
@@ -37,7 +38,7 @@ body{
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
-  background: linear-gradient(180deg, var(--bg) 0%, #0d0f12 100%);
+  background: linear-gradient(180deg, var(--bg) 0%, #050505 100%);
   color: var(--text);
 }
 
@@ -61,13 +62,16 @@ button{
   transition: border-color 0.18s, transform 0.12s, box-shadow 0.12s;
   box-shadow: 0 1px 0 rgba(0,0,0,0.3);
 }
+
 button:hover{
   border-color: var(--primary);
   transform: translateY(-1px);
 }
+
 button:active{
   transform: translateY(0);
 }
+
 button:focus,
 button:focus-visible{
   outline: none;
@@ -84,7 +88,7 @@ small, .muted {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1rem;
-  box-shadow: 0 6px 18px rgba(2,4,8,0.6);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.7);
 }
 
 @media (prefers-color-scheme: light){
@@ -94,17 +98,19 @@ small, .muted {
     --muted-surface: #ffffff;
     --text: #213547;
     --muted: rgba(33,53,71,0.6);
-    --primary: #646cff;
-    --primary-hover: #747bff;
+    --primary: #a8a8a8;
+    --primary-hover: #6f6f6f;
     --border: rgba(33,53,71,0.06);
-    --focus-ring: rgba(100,108,255,0.12);
+    --focus-ring: rgba(0,0,0,0.12);
     color-scheme: light;
     color: var(--text);
     background-color: var(--bg);
   }
+
   a:hover{
     color: var(--primary-hover);
   }
+
   button{
     background-color: var(--surface);
     color: var(--text);
